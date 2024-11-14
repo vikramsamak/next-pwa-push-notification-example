@@ -25,7 +25,10 @@ import {
 export function PushNotificationForm() {
   const [isLoading, setLoading] = useState<boolean>(false);
   const [subscription, setSubscription] = useState<PushSubscription | null>(
-    JSON.parse(localStorage.getItem(PUSH_SUBSCRIPTION_KEY) as string) || null
+    typeof window !== "undefined"
+      ? JSON.parse(localStorage.getItem(PUSH_SUBSCRIPTION_KEY) as string) ||
+          null
+      : null
   );
 
   async function registerServiceWorker() {
