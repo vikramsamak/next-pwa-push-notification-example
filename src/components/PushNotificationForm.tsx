@@ -1,7 +1,6 @@
 "use client";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -11,43 +10,22 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "./ui/textarea";
 import { useEffect, useState } from "react";
 import axios from "axios";
-
-function urlBase64ToUint8Array(base64String: string) {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const rawData = window.atob(base64);
-  const outputArray = new Uint8Array(rawData.length);
-
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
-  return outputArray;
-}
-
-const formSchema = z.object({
-  title: z
-    .string({
-      required_error: "Notification title is required.",
-    })
-    .min(2, {
-      message: "Notification title must be at least 4 characters.",
-    }),
-  body: z
-    .string({
-      required_error: "Notification body is required.",
-    })
-    .min(10, {
-      message: "Notification body must be at least 10 characters.",
-    }),
-});
+import { Spinner } from "./ui/spinner";
+import { urlBase64ToUint8Array } from "@/helpers/urlBase64ToUint8Array";
+import { pushNotificationSchema } from "@/schemas/pushNotificationSchema";
+import { z } from "zod";
+import { PushNotificationFormFields } from "@/constants/pushNotificationFormFields";
+import {
+  PUSH_NOTIFICATION_ROUTE,
+  PUSH_SUBSCRIPTION_KEY,
+} from "@/constants/constants";
 
 export function PushNotificationForm() {
+  const [isLoading, setLoading] = useState<boolean>(false);
   const [subscription, setSubscription] = useState<PushSubscription | null>(
-    null
+    JSON.parse(localStorage.getItem(PUSH_SUBSCRIPTION_KEY) as string) || null
   );
 
   async function registerServiceWorker() {
@@ -66,7 +44,10 @@ export function PushNotificationForm() {
     });
 
     const sub = await registration.pushManager.getSubscription();
-    setSubscription(sub);
+    if (sub) {
+      setSubscription(sub);
+      localStorage.setItem(PUSH_SUBSCRIPTION_KEY, JSON.stringify(sub));
+    }
   }
 
   async function subscribeToPush() {
@@ -77,69 +58,68 @@ export function PushNotificationForm() {
         process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!
       ),
     });
-    setSubscription(sub);
+    if (sub) {
+      setSubscription(sub);
+      localStorage.setItem(PUSH_SUBSCRIPTION_KEY, JSON.stringify(sub));
+    }
   }
 
   useEffect(() => {
     if ("serviceWorker" in navigator && "PushManager" in window) {
       registerServiceWorker();
-
       subscribeToPush();
     }
   }, []);
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
+  const form = useForm<z.infer<typeof pushNotificationSchema>>({
+    resolver: zodResolver(pushNotificationSchema),
     defaultValues: {
       title: "",
       body: "",
     },
   });
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
-    await axios.post("/api/webpush", {
-      title: values.title,
-      body: values.body,
-      subscription: subscription,
-    });
+  async function onSubmit(values: z.infer<typeof pushNotificationSchema>) {
+    try {
+      setLoading(true);
+      await axios.post(PUSH_NOTIFICATION_ROUTE, {
+        title: values.title,
+        body: values.body,
+        subscription: subscription,
+      });
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        <FormField
-          control={form.control}
-          name="title"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Title</FormLabel>
-              <FormControl>
-                <Input placeholder="Notification title" {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="body"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Body</FormLabel>
-              <FormControl>
-                <Textarea
-                  placeholder="Notification body..."
-                  className="resize-none h-32"
-                  minLength={4}
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <Button type="submit" className="w-full">
-          Generate
+        {PushNotificationFormFields.map((fieldConfig, index) => (
+          <FormField
+            key={index}
+            control={form.control}
+            name={fieldConfig.name}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{fieldConfig.label}</FormLabel>
+                <FormControl>
+                  <fieldConfig.component
+                    placeholder={fieldConfig.placeholder}
+                    {...fieldConfig.props}
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        ))}
+
+        <Button type="submit" className="w-full" disabled={isLoading}>
+          Generate {isLoading && <Spinner className="bg-foreground" />}
         </Button>
       </form>
     </Form>
