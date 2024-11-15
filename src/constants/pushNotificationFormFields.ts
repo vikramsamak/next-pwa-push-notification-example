@@ -27,6 +27,6 @@ export const PushNotificationFormFields: FormFieldType[] = [
     label: "Body",
     placeholder: "Notification body...",
     component: Textarea,
-    props: { className: "resize-none h-32", minLength: 4 },
+    props: { className: "h-48" },
   },
 ];

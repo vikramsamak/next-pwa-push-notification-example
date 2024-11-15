@@ -9,6 +9,7 @@ interface CustomScreenshot {
 
 interface CustomManifest extends MetadataRoute.Manifest {
   screenshots: CustomScreenshot[];
+  registerType: string;
 }
 
 export default function manifest(): CustomManifest {
@@ -20,6 +21,7 @@ export default function manifest(): CustomManifest {
     display: "standalone",
     background_color: "#ffffff",
     theme_color: "#000000",
+    registerType: "autoUpdate",
     icons: [
       {
         src: "/icons/icon-192x192.png",
